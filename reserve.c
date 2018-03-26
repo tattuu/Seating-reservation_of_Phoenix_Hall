@@ -18,28 +18,29 @@ void output_res(char kouen[], int zaseki, char name[], char address[], char tel[
 int GetRandom(int min,int max); // 乱数生成
 void book_app(char *); // 予約座席と通し番号のファイル出力
 listelement *AddItem (listelement *listpointer, char *data); // 引数のlistpointerにもう一つの引数のdataを追加
-int SearchItem( listelement*listpointer, char *data ); // 引数のlistpointer内のデータと、もう一つの引数の*data内のデータを比較する。
-void res_pass_input(void); // 予約情報の削除・確認に使う通し番号、パスワードの入力と、それらを用いた検索ファイル名の作成
+int SearchItem( listelement*listpointer, char *data ); // 引数のlistpointer内のデータと、もう一つの引数の*data内のデータ比較
+int res_pass_input(void); // 予約情報の削除・確認に使う通し番号、パスワードの入力と、それらを用いた検索ファイル名の作成
 int Clear(void); // 個別の予約者情報ファイルの削除
 int Confirmation(void); // 個別の予約者情報の確認
 void situation(void); // ホールの座席配置図
 void direct_sel(char kouen[], int num); // 座席の直接指定
 void seat_sel(char kouen[], int zaseki); // 予約方式指定と予約しようとしている座席の確認
+void strchg(char *buf, char *str1, char *str2, const int str_size); // 文字列置換
 
-FILE *ifp, *ifp2, *ofp; // 複数の関数で用いるのでグローバル変数に
+FILE *ifp, *ifp2, *ofp, *ifp_for_string_union; // 複数の関数で用いるのでグローバル変数に
 
-int judge = 0, judge2 = 0, same, list, int_ref_name=0, toosi_make=1, count=1; 
-/* judgeは1回目の入力かどうかの判定に使う(listpointer), judge2は1回目の入力かどうかの判定に使う(listpointere2), sameは文字列比較の結果, listは文字列比較の結果, 
+int judge = 0, judge2 = 0, same, list, int_ref_name=0, toosi_make=1, count=1;
+/* judgeは1回目の入力かどうかの判定に使う(listpointer), judge2は1回目の入力かどうかの判定に使う(listpointere2), sameは文字列比較の結果, listは文字列比較の結果,
    int_ref_nameは整数型の通し番号, toosi_makeは通し番号に関する処理をするかどうかの判定に使う, countは何個目の予約座席かの判定に使う
 */
-char filename[120], zaseki1[MRLNG]="0", zaseki2[MRLNG]="0", zaseki3[MRLNG]="0", zaseki4[MRLNG]="0", zaseki5[MRLNG]="0", concert_program[50][50];
-/* filename[120]は個別の予約情報のファイル名が入る, zaseki[1-5][MRLNG]はそれぞれの予約座席が入る, concert_program[50][50]はそれぞれのコンサートの演目が入る */
+char filename[120], zaseki1[MRLNG]="0", zaseki2[MRLNG]="0", zaseki3[MRLNG]="0", zaseki4[MRLNG]="0", zaseki5[MRLNG]="0", concert_program[50][50], result_concert_program[50], final_union_data[31];
+/* filename[120]は個別の予約情報のファイル名が入る, zaseki[1-5][MRLNG]はそれぞれの予約座席が入る, concert_program[50][50]はそれぞれのコンサートの演目が入る, preparation_union_dataは入力座席が予約したい座席であると確定した時にファイル出力するための変数 */
 
 // main関数(行いたい操作を選択するための関数)
 int main(void){
 	char num[2]; // 入力項目の選択番号
 	char *e; // 文字列かどうかの判定
-	int int_num, result = 1; // int_numはnum[2]の整数型, resultは②か③が選ばれたときにそれらが正常に処理されたかどうかを判断するのに用いる変数
+	int int_num, result1, result2 = 1; // int_numはnum[2]の整数型, resultは②か③が選ばれたときにそれらが正常に処理されたかどうかを判断するのに用いる変数
 
 	while(1){
 		printf("①予約情報\n②予約情報削除\n③予約情報確認\n--------------------\n数字でお選びください：");
@@ -58,13 +59,13 @@ int main(void){
 		pro_sel();
 	}
 	else if(int_num==2 || int_num==3){
-		while(result==1){ // 正常に②か③が終了するまで繰り返す
-			res_pass_input();// 予約情報の削除・確認に使う通し番号、パスワードの入力と、それらを用いた検索ファイル名の作成
-			if(int_num==2){	//予約情報削除
-				result = Clear();
+		while(result2==1){ // 正常に②か③が終了するまで繰り返す
+			result1 = res_pass_input();// 予約情報の削除・確認に使う通し番号、パスワードの入力と、それらを用いた検索ファイル名の作成
+			if(int_num==2 && result1 == 0){	//予約情報削除
+				result2 = Clear();
 			}
-			else if(int_num==3){	//予約情報確認
-				result = Confirmation();
+			else if(int_num==3 && result1 == 0){	//予約情報確認
+				result2 = Confirmation();
 			}
 		}
 	}
@@ -76,7 +77,7 @@ void pro_sel(void){
 	char data[2], zaseki[2], ch; // data[3]は公演番号, zaseki[2]は予約座席数, chはファイルから入力された一文字を代入するのに使う
 	char *e; // dataが整数かどうかの判定に使用
 	int int_data, int_zaseki, i, j = 0; // int_dataはdata[2]の整数型, int_zasekiはzaseki[2]の整数型
-	
+
 	FILE *ifp_concert_program; // 演目を読み込むために使うファイル
 
 	while(1){ // 正常に入力されるまで繰り返す
@@ -197,13 +198,13 @@ void seat_sel(char kouen[], int zaseki)
 
 	while(1){
 		while(1){
-			printf("座席の指定方法を以下の3つです。\n①直接指定\n--------------------\n半角数字でご入力ください：");
+			printf("座席の指定方法は以下の1つです。\n①直接指定\n--------------------\n半角数字でご入力ください：");
 
 			fflush(stdin); // 文字入力
 			fgets(sel, 2, stdin); // 文字入力
 			int_sel=atoi(sel);
 			if((strtol(sel,&e,0)==0) || (int_sel>3 || int_sel<1)){
-				printf("\n1～3の中から入力してください。\n");
+				printf("\n1を入力してください。\n");
 				continue;
 			}
 			else{
@@ -246,11 +247,18 @@ void seat_sel(char kouen[], int zaseki)
 				continue;
 			}
 			else{
+        		fprintf (ifp, final_union_data); // 予約座席をファイルに出力
+        		fclose(ifp);
 				break;
 			}
 		}
 		if(int_check==2){ //予約する座席が間違いありの場合実行する
 			printf("\n再入力お願いします。\n");
+      		fclose(ifp);
+      		toosi_make = 1; // 座席入力をさせるためにtoosi_makeに1を入力
+
+			//memset関数を使用
+			memset(final_union_data, '\0' , 31);
 			continue;
 		}
 		else{
@@ -273,7 +281,7 @@ void direct_sel(char kouen[], int num)
 	{
 		book_app(filename); // 関数呼び出し(引数は、入力ファイルと出力ファイル)
 	}
-	toosi_make=0; // 座席予約をするためにbook_appを実行している時に、必要な処理だけをさせるためにtoosi_makeを+1
+	toosi_make=0; // 座席予約をするためにbook_appを実行している時に、必要な処理だけをさせるためにtoosi_makeを0に
 
 	return;
 }
@@ -284,7 +292,7 @@ void book_app(char *in_filename){
 	listelement *listpointer; // 新しく予約したい座席が予約できるかどうかを調べるのに用いるリスト構造ポインタ
 	listelement *listpointer2; // 予約できる座席かどうかを調べるのに用いるリスト構造ポインタ
 
-	char ch,ref_name[5], data[5]; // chはファイルからの一文字抽出に用いる変数, ref_nameはファイルから呼び出した座席の値が入る変数, data[5]は入力された座席が入る変数
+	char ch,ref_name[5], data[5], preparation_union_data[7]; // chはファイルからの一文字抽出に用いる変数, ref_nameはファイルから呼び出した座席の値が入る変数, data[5]は入力された座席が入る変数, preparation_union_dataはfinal_union_dataに対して用いる変数
     	int i, flag = 0,check1; // iはループ変数, flagは文字が存在するかどうかの判定に用いる, check1は座席の入力データと予約済み座席を引数とし、SearchItem関数を実行したときの戻り値の値
 
 	if(toosi_make==1){ // 個別予約情報の通し番号に関する処理じゃない時
@@ -356,7 +364,8 @@ void book_app(char *in_filename){
 			SearchItem (listpointer2,data); // 入力データが予約できる座席かどうかを調べる
 
 			if(check1==500&&list==1){ // 予約しようとしている座席が、zaseki.txtに存在していない、かつ、zaseki_list.txtに座席が存在した場合
-				fprintf (ifp,"/%s/",data); // 予約座席をファイルに出力
+        		sprintf(preparation_union_data, "/%s/", data);
+        		strcat(final_union_data, preparation_union_data);
 
 				if(count==1){ // 一つ目の座席
 					strcpy(zaseki1, data); // 予約座席を他の関数で使うので、グローバル変数zaseki1[5]に代入
@@ -375,7 +384,7 @@ void book_app(char *in_filename){
 				}
 				count++; // 何回目の予約座席かのカウント
 
-				printf("座席の予約完了\n");
+				printf("この座席は予約可能です。\n");
 				fclose(ifp2);
 				break;
 			}else{
@@ -392,11 +401,10 @@ void book_app(char *in_filename){
 			int_ref_name++; // 通し番号を+1する
 
 			fprintf(ifp, "/%d/", int_ref_name); // ファイル出力(※fprintfの中で++しても無効になる)
+      fclose(ifp);
 			break;
 		}
 	}
-
-	fclose(ifp);
 
 	return;
 }
@@ -460,8 +468,8 @@ void output_res(char kouen[], int zaseki, char name[], char address[], char tel[
 	time_t t; // 現在時刻を取得するのに用いる変数
 	struct tm *tp; // 現在時刻の詳細を取得するのに用いる変数
 	char calender[256], pass[5], str[2];
-	/* 
-		calenderは予約日時を取得するために用いる, passはパスワードが入る変数, 
+	/*
+		calenderは予約日時を取得するために用いる, passはパスワードが入る変数,
 		予約完了後に勝手に消えないようにするための入力待ちを作るための変数(入力される値に意味はない。), str[2]は入力された選択番号が入る変数
 	*/
 	char pass_moto[]="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"; // パスワードの基となる文字列
@@ -611,10 +619,10 @@ int SearchItem( listelement*listpointer, char *data )
 }
 
 // 予約情報の確認と削除で用いる関数
-void res_pass_input(void){
+int res_pass_input(void){
 	int i, j = 0, int_toosi_num, int_data; // iはループ変数, jはループ変数, int_toosi_numは整数型の通し番号, int_dataは整数型の入力番号
 	char pass_num[5], toosi_num[301], ch, data[3];
-	/* pass_num[5]は入力されたパスワードが入る変数, toosi_numは入力された通し番号が入る変数, chはファイルからの一文字抽出に用いる変数, data[2]は入力された選択番号が入る変数 */
+	/* pass_num[5]は入力されたパスワードが入る変数, toosi_numは入力された通し番号が入る変数, chはファイルからの一文字抽出に用いる変数, data[3]は入力された選択番号が入る変数 */
 	char *e; // 文字列かどうかの判定に用いるポインタ
 
 	FILE *ifp_concert_program; // 演目を読み込むために使うファイル
@@ -625,7 +633,7 @@ void res_pass_input(void){
 		printf("\n下記の数字の中から入力してください。\n\n");
 		if((ifp_concert_program = fopen("configration/concert_program.txt","r"))==NULL){
 			printf("入力ファイルを開けませんでした。\n");
-			return;
+			return 1;
 		}
 		while((ch = fgetc(ifp_concert_program)) != EOF){ // EOFになるまでchに代入
 			if(ch == MARK){
@@ -678,46 +686,130 @@ void res_pass_input(void){
 				continue;
 			}
 		}
-		if(strtol(pass_num,&e,0)!=0){
+		if(strtol(pass_num,&e,0)!=0){ // 文字以外のものが入力された場合
 			printf("\n文字のみのパスワードを入力してください\n");
 			continue;
 		}
 		break;
 	}
-	sprintf(filename, "reservation_infomation/%s/%04d-%s_info.txt", concert_program[int_data - 1], int_toosi_num, pass_num); // 個別の予約情報ファイル名を作成
 
-	return;
+	strcpy(result_concert_program, concert_program[int_data - 1]); // 入力された演目名をresult_concert_programに代入
+	sprintf(filename, "reservation_infomation/%s/%04d-%s_info.txt", result_concert_program, int_toosi_num, pass_num); // 個別の予約情報ファイル名を作成
+	if((ifp = fopen(filename, "r"))==NULL){ // 作成した個別の予約情報ファイルを開く
+		printf("入力された予約情報は存在しませんでした。\n入力内容を確認し、再度ご入力ください\n");
+		return 1;
+	}
+
+	return 0;
 }
 
 // 予約削除に用いる関数
 int Clear(void){
-	char str[2]; // 入力データが入る
+	int i = 2, j; // iは削除対象座席数分、新しく動的メモリ確保するために用いる変数, jは純粋な予約座席の情報が入った変数の先頭と最後に"/"を入れるために用いる変数
+	char str[2], filename2[120], itigyou_output[7]; // str[2]は入力データが入る変数, filename[120]は予約済み座席が入っているzaseki.txtのファイルパスが入る変数, itigyou_output[7]は予約済み座席1つ分("/〇〇〇〇/\0")のデータが入る
+	char str_seat_list[1] = "", *pointer_seat_list; // str_seat_list[1]は予約済み座席が入る変数, *pointer_seat_listはstr_seat_list[1]を表すポインタ
+	char *point_del_word; // 削除対象の文字列が含まれる文字列が入る
+	char itigyou_extraction[60]; // ファイルから出力された一行を文字する変数
+	char keep_value1, keep_value2; // keep_value1,2は純粋な予約座席の情報が入った変数の先頭と最後に"/"を入れるために用いる変数
 
-  	if( remove( filename ) == 0 ){ // ファイルが存在し、削除できる場合
-    		printf( "予約情報を削除しました。");
+  sprintf(filename2, "reservation_infomation/%s/zaseki.txt", result_concert_program); // 予約済み座席が入っているzaseki.txtのファイルパスを作成
+  if((ifp2 = fopen(filename2, "r"))==NULL){ // 予約済み座席が入っているzaseki.txtを開く
+    printf("入力された予約情報は存在しませんでした。\n入力内容を確認し、再度ご入力ください\n");
+    return 1;
+  }
+
+  pointer_seat_list = &str_seat_list[0]; //
+  pointer_seat_list = (char *)realloc(pointer_seat_list,sizeof(char) * 7);
+  while(fgets(itigyou_output, sizeof(itigyou_output), ifp2)!=NULL){ //zaseki.txtから予約済み座席を取得
+	   strcat(pointer_seat_list, itigyou_output); // 抽出された予約済み座席のデータをpointer_seat_listに代入
+	   pointer_seat_list = (char *)realloc(pointer_seat_list,sizeof(char) * (i * 7)); // さらに予約済み座席のデータが存在する可能性があるので、予約済み座席のデータをさらにもう一つ入れる事ができるだけのメモリを動的確保
+	   i++;
+  }
+
+  i = 1;
+  while(fgets(itigyou_extraction, 60, ifp)!=NULL){ //一行ずつファイル出力
+    if(i == 5){ // 5行目まで来たら
+		 break;  // 目的の予約座席を表す行まで来たら抜ける
+    }
+	i++;
+  }
+
+  point_del_word = &itigyou_extraction[0]; // 予約座席を表す行のデータをpoint_del_wordに代入
+
+   // 予約座席を表す行から、純粋な予約座席のデータのみを抽出するための処理
+  strchg(point_del_word, "予約座席番号：", "", strlen(pointer_seat_list));
+  strchg(point_del_word, ",", "//", strlen(pointer_seat_list)); //
+
+  // 先頭に"/"を入れるための処理(以下12行)
+  keep_value1 = itigyou_extraction[0];
+  itigyou_extraction[0] = '/';
+  j = 1;
+  while(itigyou_extraction[j] != '\n'){
+  	keep_value2 = itigyou_extraction[j];
+	itigyou_extraction[j] = keep_value1;
+	keep_value1 = keep_value2;
+	j++;
+  }
+  itigyou_extraction[j] = keep_value1;
+  itigyou_extraction[j + 1] = '/';
+  itigyou_extraction[j + 2] = '\0';
+
+   strchg(pointer_seat_list, point_del_word, "", strlen(pointer_seat_list)); // 予約済み座席一覧を表す文字列から、削除対象座席を削除する
+
+   fclose(ifp2); // zaseki.txtを閉じる
+   if((ifp2 = fopen(filename2, "w"))==NULL){ // 予約済み座席が入っているzaseki.txtを開く
+    printf("入力された予約情報は存在しませんでした。\n入力内容を確認し、再度ご入力ください\n");
+    return 1;
+   }
+
+   fprintf(ifp2, "%s", pointer_seat_list); // 予約済み座席一覧から、予約削除対象座席を削除した新しい予約済み座席一覧をファイル(zaseki.txt)に入力
+
+  free(pointer_seat_list); // メモリ解放
+
+  fclose(ifp2); // zaseki.txtを閉じる
+  fclose(ifp); // reservation/演目名/個別の予約情報ファイルを閉じる
+  if(remove( filename ) == 0 ){ // ファイルが存在し、削除できる場合
+    printf( "予約情報を削除しました。");
 		fflush(stdin); // 文字入力
 		fgets(str, 2, stdin); // 文字入力
 		return 0;
 	}
-  	else{
-    		printf( "予約情報削除に失敗しました\n入力内容を確認し、再度ご入力ください\n");
-		return 1;
-  	}
+  else{
+  		printf( "予約情報削除に失敗しました\n入力内容を確認し、再度ご入力ください\n");
+	    return 1;
+  }
 }
 
 // 予約確認に用いる関数
 int Confirmation(void){
 	char itigyou_output[60], str[2]; // itigyou_output[60]はファイルから読み込んだ一行を入れるために使用, str[2]は入力データが入る
 
-	if((ifp = fopen(filename, "r"))==NULL){
-		printf("入力された予約情報は存在しませんでした。\n入力内容を確認し、再度ご入力ください\n");
-		return 1;
-	}
 	while(fgets(itigyou_output, 60, ifp)!=NULL){ //一行ずつ画面に表示
 		printf("%s", itigyou_output);
 	}
 	fflush(stdin); // 文字入力
 	fgets(str, 2, stdin); // 文字入力
-	fclose(ifp);
+	fclose(ifp); // 個別の予約情報ファイルを閉じる
 	return 0;
+}
+
+// 文字列置換
+void strchg(char *buf, char *str1, char *str2, const int str_size)
+{
+  char *p_tmp; // 急文字列から後の文字列保存に用いる
+  char *p; // 急文字列を示すポインタが入る
+
+  p_tmp = (char *)malloc(sizeof(char) * str_size); // 置換前の文字列のサイズを動的メモリ確保
+  p_tmp[0] = '\0'; // 初期値を入れておく
+
+  while ((p = strstr(buf, str1)) != NULL) { /* 見つからなくなるまで繰り返し、pは旧文字列の先頭を指している */
+    *p = '\0'; /* 元の文字列を旧文字列の直前で区切って */
+    p += strlen(str1);  /* ポインタを旧文字列の次の文字へ */
+    strcpy(p_tmp, p);             /* 旧文字列から後を保存 */
+    strcat(buf, str2);  /* 新文字列をその後につなぎ */
+    strcat(buf, p_tmp);   /* さらに残りをつなぐ */
+  }
+
+  free(p_tmp); // メモリ解放
+  return;
 }
